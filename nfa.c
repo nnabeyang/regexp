@@ -67,6 +67,16 @@ struct State* post2nfa(const char* post) {
   patch(e.out, &match_state);
   return e.start;
 }
+int match(struct State* s, const char* str) {
+  int c;
+  for(;*str != '\0';str++) {
+    c = *str & 0xff;
+    if(s->c != c)
+      return 0;
+    s = s->out;
+  }
+  return s == &match_state;
+}
 void test(void);
 int main(void) {
   test();
@@ -107,7 +117,7 @@ void test_fragment(void) {
   assert(!strcmp("c:b, out:NULL\n",CheckState(f.out, NULL)));
   free(s1);free(s2);
 }
-void test_post2nfa(void) {
+void test_post2nfa1(void) {
   struct State* s = post2nfa("ab.");
   assert(!strcmp("c:a, out:NN\n",CheckState(s, NULL)));
   assert(!strcmp("c:b, out:NN\n",CheckState(s->out, NULL)));
@@ -118,10 +128,29 @@ void test_post2nfa(void) {
     free(s);
   }
 }
+void test_post2nfa2(void) {
+  struct State* s = post2nfa("ab.c.");
+  assert(!strcmp("c:a, out:NN\n",CheckState(s, NULL)));
+  assert(!strcmp("c:b, out:NN\n",CheckState(s->out, NULL)));
+  assert(!strcmp("c:c, out:NN\n",CheckState(s->out->out, NULL)));
+  assert(&match_state == s->out->out->out);
+  struct State* outer;
+  for(;s != &match_state ;s = outer) {
+    outer = s->out;
+    free(s);
+  }
+}
+void test_match(void) {
+  assert(match(post2nfa("ab.c."), "abc"));
+  assert(!match(post2nfa("ab.c."), "ab"));
+  assert(!match(post2nfa("ab.c."), "abcd"));
+}
 void test(void) {
   test_reg2post();
   test_create_state();
   test_patch();
   test_fragment();
-  test_post2nfa();
+  test_post2nfa1();
+  test_post2nfa2();
+  test_match();
 }
