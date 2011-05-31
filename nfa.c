@@ -18,14 +18,54 @@ int i = 0;
     *dst++ = '.';
   return buf;
 }
+enum {
+  Match = 256
+};
 struct State {
   int c;
   struct State* out;
 };
+const char* CheckState(struct State* s, FILE* fp);
+struct State match_state = {Match, NULL};
 struct State* state(int c, struct State* out) {
 struct State* s = malloc(sizeof(struct State));
   s->c = c; s->out = out;
   return s;
+}
+void patch(struct State* s1, struct State* s2) {
+  s1->out = s2;
+}
+struct Frag {
+  struct State* start;
+  struct State* out;
+};
+struct Frag frag(struct State* s1, struct State* s2) {
+  struct Frag f = {s1, s2};
+  return f;
+}
+struct State* post2nfa(const char* post) {
+  struct Frag stack[800], *stackp, e, e1, e2;
+  struct State* s;
+  stackp = &stack[0];
+  #define push(s) *stackp++ = s
+  #define pop() *--stackp
+  for(; *post; post++) {
+    switch(*post) {
+      default:
+        s = state(*post, NULL);
+        push(frag(s, s));
+	break;
+      case '.':
+        e2 = pop();
+        e1 = pop();
+	patch(e1.out, e2.start);
+	push(frag(e1.start, e2.out));
+	break;
+    }
+  }
+  e = pop();
+  patch(e.out, &match_state);
+  return e.start;
 }
 void test(void);
 int main(void) {
@@ -51,7 +91,37 @@ void test_create_state(void) {
   assert(!strcmp("c:b, out:NN\n",CheckState(s2, NULL)));
   free(s1);free(s2);
 }
+void test_patch(void) {
+  struct State* s1 = state('a', NULL);
+  struct State* s2 = state('b', NULL);
+  patch(s1, s2);
+  assert(!strcmp("c:a, out:NN\n",CheckState(s1, NULL)));
+  assert(!strcmp("c:b, out:NULL\n",CheckState(s2, NULL)));
+  free(s1);free(s2);
+}
+void test_fragment(void) {
+  struct State* s1 = state('a', NULL);
+  struct State* s2 = state('b', NULL);
+  struct Frag f = frag(s1, s2);
+  assert(!strcmp("c:a, out:NULL\n",CheckState(f.start, NULL)));
+  assert(!strcmp("c:b, out:NULL\n",CheckState(f.out, NULL)));
+  free(s1);free(s2);
+}
+void test_post2nfa(void) {
+  struct State* s = post2nfa("ab.");
+  assert(!strcmp("c:a, out:NN\n",CheckState(s, NULL)));
+  assert(!strcmp("c:b, out:NN\n",CheckState(s->out, NULL)));
+  assert(&match_state == s->out->out);
+  struct State* outer;
+  for(;s != &match_state ;s = outer) {
+    outer = s->out;
+    free(s);
+  }
+}
 void test(void) {
   test_reg2post();
   test_create_state();
+  test_patch();
+  test_fragment();
+  test_post2nfa();
 }
