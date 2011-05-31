@@ -78,8 +78,22 @@ int match(struct State* s, const char* str) {
   return s == &match_state;
 }
 void test(void);
-int main(void) {
-  test();
+int main(int argc, char* argv[]) {
+  if(argc == 2 && !strcmp("test", argv[1])) {
+    test();
+    exit(0);
+  }
+  if(argc != 3) {
+    fprintf(stderr, "%s regexp string", argv[0]);
+    exit(1);
+  }
+  char* postfix = reg2post(argv[1]);
+  struct State* start = post2nfa(postfix);
+  int i;
+  if(match(start, argv[2]))
+    printf("match\n"); 
+  else
+    printf("no match\n"); 
   return 0;
 }
 void test_reg2post(void) {
