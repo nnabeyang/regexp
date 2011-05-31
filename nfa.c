@@ -6,16 +6,35 @@ char* reg2post(const char* re) {
 static char buf[8000];
 char* dst;
 int i = 0;
+int j = 0;
   dst = &buf[0];
   for(;*re;re++) {
-    if(i > 1) {
-      *dst++ = '.';
+    switch(*re) {
+      default:
+        if(i > 1) {
+          *dst++ = '.';
+	  i--;
+        }
+        *dst++ = *re;
+        i++;
+        break;
+      case '|':
+        assert(i > 0);
+	i--;
+        if(i == 1) {
+          *dst++ = '.';
+	  i--;
+	}
+        j++;
+	break;
     }
-    *dst++ = *re;
-    i++;
   }
   if(i > 1)
     *dst++ = '.';
+  for(;j > 0;j--)
+    *dst++ = '|';
+
+  *dst = '\0';
   return buf;
 }
 enum {
@@ -100,6 +119,10 @@ void test_reg2post(void) {
   assert(!strcmp("a",reg2post("a")) && "a -> a");
   assert(!strcmp("ab.",reg2post("ab")) && "ab -> ab.");
   assert(!strcmp("ab.c.d.e.f.g.",reg2post("abcdefg")) && "abcdefg -> ab.c.d.e.f.g.");
+  assert(!strcmp("ab|", reg2post("a|b")));
+  assert(!strcmp("abc||", reg2post("a|b|c")));
+  assert(!strcmp("ab.cd.|", reg2post("ab|cd")));
+  assert(!strcmp("ab.c.de.f.gh.i.||", reg2post("abc|def|ghi")));
 }
 const char* CheckState(struct State* s, FILE* fp) {
 static char buf[80];
