@@ -29,6 +29,7 @@ int j = 0;
 	break;
       case '*':
       case '+':
+      case '?':
         assert(i > 0);
 	*dst++ = *re;
     }
@@ -125,6 +126,11 @@ struct State* post2nfa(const char* post) {
 	s = state(Split, e.start, NULL);
 	patch(e.out, s);
 	push(frag(e.start, list(&s->out1)));
+	break;
+      case '?':
+        e = pop();
+	s = state(Split, e.start, NULL);
+	push(frag(s, append(list(&s->out1), e.out)));
 	break;
     }
   }
@@ -353,6 +359,16 @@ void test_post2nfa_plus(void) {
   free(s); 
 }
 
+void test_post2nfa_quest(void) {
+  struct State* s = post2nfa("a?");
+  assert(!strcmp("c:Split, out:NN, out1:NN\n",CheckState(s, NULL)));
+  assert(!strcmp("c:a, out:NN, out1:NULL\n",CheckState(s->out, NULL)));
+  assert(s->out1 == s->out->out);
+  assert(&match_state == s->out1);
+  free(s->out); 
+  free(s); 
+}
+
 void test_startlist(void) {
   nstate = 0;
   struct State* s = post2nfa("ab.");
@@ -371,6 +387,7 @@ void test_startlist_alt(void) {
   assert(2 == l1.n);
   assert(!strcmp("c:a, out:NN, out1:NULL\n",CheckState(l1.s[0], NULL)));
   assert(!strcmp("c:b, out:NN, out1:NULL\n",CheckState(l1.s[1], NULL)));
+  free(s);
   free(l1.s);
 }
 
@@ -382,6 +399,7 @@ void test_match(void) {
   assert(match(s, "abc"));
   assert(!match(s, "ab"));
   assert(!match(s, "abcd"));
+  free(s); 
   free(l1.s); free(l2.s);
 }
 
@@ -394,6 +412,7 @@ void test_match_alt(void) {
   assert(match(s, "b"));
   assert(!match(s, "c"));
   assert(!match(s, "ab"));
+  free(s);
   free(l1.s); free(l2.s);
 }
 
@@ -407,7 +426,7 @@ void test_match_star(void) {
   assert(match(s, "aaa"));
   assert(!match(s, "aaab"));
   assert(!match(s, "baaa"));
-  free(s);free(l1.s); free(l2.s);
+  free(s); free(l1.s); free(l2.s);
 }
 
 void test_match_star2(void) {
@@ -423,7 +442,7 @@ void test_match_star2(void) {
   assert(!match(s, "abc"));
   assert(!match(s, "ac"));
   assert(!match(s, "bc"));
-  free(s);free(l1.s); free(l2.s);
+  free(s); free(l1.s); free(l2.s);
 }
 
 void test_match_plus(void) {
@@ -436,7 +455,20 @@ void test_match_plus(void) {
   assert(match(s, "baa"));
   assert(match(s, "baaa"));
   assert(!match(s, "bba"));
-  free(s);free(l1.s); free(l2.s);
+  free(s); free(l1.s); free(l2.s);
+}
+
+void test_match_quest(void) {
+  nstate = 0;
+  l1.s = malloc(nstate* sizeof(l1.s[0]));
+  l2.s = malloc(nstate* sizeof(l2.s[0])); 
+  struct State* s = post2nfa("ba?.");
+  assert(match(s, "b"));
+  assert(match(s, "ba"));
+  assert(!match(s, "baa"));
+  assert(!match(s, "baaa"));
+  assert(!match(s, "bba"));
+  free(s); free(l1.s); free(l2.s);
 }
 
 
@@ -453,10 +485,12 @@ void test(void) {
   test_post2nfa_star();
   test_post2nfa_star2();
   test_post2nfa_plus();
+  test_post2nfa_quest();
   test_startlist();
   test_match();
   test_match_alt();
   test_match_star();
   test_match_star2();
   test_match_plus();
+  test_match_quest();
 }
