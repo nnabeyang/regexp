@@ -27,6 +27,9 @@ int j = 0;
 	}
         j++;
 	break;
+      case '*':
+        assert(i > 0);
+	*dst++ = *re;
     }
   }
   if(i > 1)
@@ -110,6 +113,12 @@ struct State* post2nfa(const char* post) {
 	s = state(Split, e1.start, e2.start);
 	push(frag(s, append(e1.out, e2.out)));
 	break;
+      case '*':
+        e = pop();
+	s = state(Split, e.start, NULL);
+	patch(e.out, s);
+	push(frag(s, list(&s->out1)));
+	break;
     }
   }
   e = pop();
@@ -127,6 +136,8 @@ void startlist(struct StateList* l, struct State* s) {
   addstate(l, s);
 }
 void addstate(struct StateList* l, struct State* s) {
+  if(s == NULL)
+    return;
   if(s->c == Split) {
     l->s[l->n++] = s->out;
     l->s[l->n++] = s->out1;
@@ -136,11 +147,10 @@ void addstate(struct StateList* l, struct State* s) {
 }
 void step(struct StateList* l1, int c, struct StateList* l2) {
   struct State* s;
+  l2->n = 0;
   int i;
   for(i = 0; i < l1->n; i++) {
     s = l1->s[i];
-    if(s->out == NULL)
-      return;
     if(s->c == c)
       addstate(l2, s->out);
   }
@@ -201,6 +211,7 @@ void test_reg2post(void) {
   assert(!strcmp("abc||", reg2post("a|b|c")));
   assert(!strcmp("ab.cd.|", reg2post("ab|cd")));
   assert(!strcmp("ab.c.de.f.gh.i.||", reg2post("abc|def|ghi")));
+  assert(!strcmp("a*", reg2post("a*")));
 }
 const char* CheckState(struct State* s, FILE* fp) {
 static char buf[80];
@@ -298,6 +309,16 @@ void test_post2nfa_alt(void) {
   assert(&match_state == s->out1->out);
   free(s); free(s->out); free(s->out1);
 }
+
+void test_post2nfa_star(void) {
+  struct State* s = post2nfa("a*");
+  assert(!strcmp("c:Split, out:NN, out1:NN\n",CheckState(s, NULL)));
+  assert(!strcmp("c:a, out:NN, out1:NULL\n",CheckState(s->out, NULL)));
+  assert(s = s->out->out);
+  assert(&match_state == s->out1);
+  free(s); free(s->out);
+}
+
 void test_startlist(void) {
   nstate = 0;
   struct State* s = post2nfa("ab.");
@@ -331,10 +352,28 @@ void test_match(void) {
 }
 
 void test_match_alt(void) {
-  assert(match(post2nfa("ab|"), "a"));
-  assert(match(post2nfa("ab|"), "b"));
-  assert(!match(post2nfa("ab|"), "c"));
-  assert(!match(post2nfa("ab|"), "ab"));
+  nstate = 0;
+  l1.s = malloc(nstate* sizeof(l1.s[0]));
+  l2.s = malloc(nstate* sizeof(l2.s[0])); 
+  struct State* s = post2nfa("ab|");
+  assert(match(s, "a"));
+  assert(match(s, "b"));
+  assert(!match(s, "c"));
+  assert(!match(s, "ab"));
+  free(l1.s); free(l2.s);
+}
+
+void test_match_star(void) {
+  nstate = 0;
+  l1.s = malloc(nstate* sizeof(l1.s[0]));
+  l2.s = malloc(nstate* sizeof(l2.s[0])); 
+  struct State* s = post2nfa("a*");
+  assert(match(s, "a"));
+  assert(match(s, "aa"));
+  assert(match(s, "aaa"));
+  assert(!match(s, "aaab"));
+  assert(!match(s, "baaa"));
+  free(s);free(l1.s); free(l2.s);
 }
 
 void test(void) {
@@ -346,7 +385,9 @@ void test(void) {
   test_post2nfa1();
   test_post2nfa2();
   test_post2nfa_alt();
+  test_post2nfa_star();
   test_startlist();
   test_match();
   test_match_alt();
+  test_match_star();
 }
