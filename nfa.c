@@ -139,8 +139,8 @@ void addstate(struct StateList* l, struct State* s) {
   if(s == NULL)
     return;
   if(s->c == Split) {
-    l->s[l->n++] = s->out;
-    l->s[l->n++] = s->out1;
+    addstate(l, s->out);
+    addstate(l, s->out1);
     return;
   }
   l->s[l->n++] = s;
@@ -212,6 +212,7 @@ void test_reg2post(void) {
   assert(!strcmp("ab.cd.|", reg2post("ab|cd")));
   assert(!strcmp("ab.c.de.f.gh.i.||", reg2post("abc|def|ghi")));
   assert(!strcmp("a*", reg2post("a*")));
+  assert(!strcmp("a*b*.", reg2post("a*b*")));
 }
 const char* CheckState(struct State* s, FILE* fp) {
 static char buf[80];
@@ -319,6 +320,22 @@ void test_post2nfa_star(void) {
   free(s); free(s->out);
 }
 
+void test_post2nfa_star2(void) {
+  nstate = 0;
+  struct State* s = post2nfa("a*b*.");
+  l1.s = malloc(nstate* sizeof(l1.s[0]));
+  assert(!strcmp("c:Split, out:NN, out1:NN\n",CheckState(s, NULL)));
+  assert(!strcmp("c:a, out:NN, out1:NULL\n",CheckState(s->out, NULL)));
+  assert(!strcmp("c:Split, out:NN, out1:NN\n",CheckState(s->out1, NULL)));
+  assert(!strcmp("c:b, out:NN, out1:NULL\n",CheckState(s->out1->out, NULL)));
+  assert(s == s->out->out);
+  assert(s->out1 == s->out1->out->out);
+  assert(&match_state == s->out1->out1);
+  startlist(&l1, s);
+  assert(3 == l1.n);
+  free(s); free(s->out); free(l1.s);
+}
+
 void test_startlist(void) {
   nstate = 0;
   struct State* s = post2nfa("ab.");
@@ -376,6 +393,23 @@ void test_match_star(void) {
   free(s);free(l1.s); free(l2.s);
 }
 
+void test_match_star2(void) {
+  nstate = 0;
+  l1.s = malloc(nstate* sizeof(l1.s[0]));
+  l2.s = malloc(nstate* sizeof(l2.s[0])); 
+  struct State* s = post2nfa("a*b*.");
+  assert(match(s, "a"));
+  assert(match(s, "b"));
+  assert(match(s, "ab"));
+  assert(match(s, "aab"));
+  assert(match(s, "abb"));
+  assert(!match(s, "abc"));
+  assert(!match(s, "ac"));
+  assert(!match(s, "bc"));
+  free(s);free(l1.s); free(l2.s);
+}
+
+
 void test(void) {
   test_reg2post();
   test_create_state();
@@ -386,8 +420,10 @@ void test(void) {
   test_post2nfa2();
   test_post2nfa_alt();
   test_post2nfa_star();
+  test_post2nfa_star2();
   test_startlist();
   test_match();
   test_match_alt();
   test_match_star();
+  test_match_star2();
 }
