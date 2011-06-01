@@ -7,6 +7,11 @@ static char buf[8000];
 char* dst;
 int i = 0;
 int j = 0;
+  struct {
+    int i;
+    int j;
+  } paren[100], *p;
+  p = &paren[0];
   dst = &buf[0];
   for(;*re;re++) {
     switch(*re) {
@@ -32,8 +37,32 @@ int j = 0;
       case '?':
         assert(i > 0);
 	*dst++ = *re;
+	break;
+      case '(':
+        if(i > 1) {
+          *dst++ = '.';
+	  i--;
+	}
+	p->i = i;
+	p->j = j;
+	p++;
+	i = 0;
+	j = 0;
+	break;
+      case ')':
+        if(i > 1)
+          *dst++ = '.';
+        for(;j > 0;j--)
+          *dst++ = '|';
+        assert(p != &paren[0]);
+	p--;
+	i = p->i;
+	j = p->j;
+	i++;
+	break;
     }
   }
+  assert(p == &paren[0]);
   if(i > 1)
     *dst++ = '.';
   for(;j > 0;j--)
@@ -226,6 +255,8 @@ void test_reg2post(void) {
   assert(!strcmp("ab.c.de.f.gh.i.||", reg2post("abc|def|ghi")));
   assert(!strcmp("a*", reg2post("a*")));
   assert(!strcmp("a*b*.", reg2post("a*b*")));
+  assert(!strcmp("abc|.", reg2post("a(b|c)")));
+  assert(!strcmp("abcd||.", reg2post("a(b|(c|d))")));
 }
 const char* CheckState(struct State* s, FILE* fp) {
 static char buf[80];
